@@ -417,18 +417,17 @@ function HubPageInner() {
   const searchParams = useSearchParams();
 
   /* ── Entry animation from Landing page ── */
-  const [entryPhase, setEntryPhase] = useState<"drip" | "pause" | "fly" | "reveal" | "done">("done");
+  const isFromLanding = searchParams.get("entry") === "ink";
+  const [entryPhase, setEntryPhase] = useState<"drip" | "pause" | "fly" | "reveal" | "done">(isFromLanding ? "drip" : "done");
   const dripCanvasRef = useRef<HTMLCanvasElement>(null);
   const dripAnimRef = useRef<number>(0);
 
-  // Detect ?entry=ink and start entry animation
+  // Clean URL without reload when entering from Landing
   useEffect(() => {
-    if (searchParams.get("entry") === "ink") {
-      setEntryPhase("drip");
-      // Clean URL without reload
+    if (isFromLanding) {
       window.history.replaceState({}, "", "/hub");
     }
-  }, [searchParams]);
+  }, [isFromLanding]);
 
   // Drip animation — white falls down like ink
   useEffect(() => {
@@ -547,13 +546,13 @@ function HubPageInner() {
   }, [transitionPhase, router]);
 
   const goTo = useCallback(
-    (next: number) => {
+    (next: number, dir?: number) => {
       if (isAnimating.current) return;
-      if (next < 0 || next >= sections.length) return;
-      if (next === current) return;
+      const wrapped = ((next % sections.length) + sections.length) % sections.length;
+      if (wrapped === current) return;
       isAnimating.current = true;
-      setDirection(next > current ? 1 : -1);
-      setCurrent(next);
+      setDirection(dir ?? (next > current ? 1 : -1));
+      setCurrent(wrapped);
       setTimeout(() => {
         isAnimating.current = false;
       }, 700);
@@ -566,10 +565,10 @@ function HubPageInner() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight" || e.key === "ArrowDown") {
         e.preventDefault();
-        goTo(current + 1);
+        goTo(current + 1, 1);
       } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
         e.preventDefault();
-        goTo(current - 1);
+        goTo(current - 1, -1);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -582,8 +581,8 @@ function HubPageInner() {
       e.preventDefault();
       const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
       if (Math.abs(delta) < 20) return;
-      if (delta > 0) goTo(current + 1);
-      else goTo(current - 1);
+      if (delta > 0) goTo(current + 1, 1);
+      else goTo(current - 1, -1);
     };
     window.addEventListener("wheel", onWheel, { passive: false });
     return () => window.removeEventListener("wheel", onWheel);
@@ -597,8 +596,8 @@ function HubPageInner() {
     const onTouchEnd = (e: TouchEvent) => {
       const delta = touchStartX.current - e.changedTouches[0].clientX;
       if (Math.abs(delta) < 50) return;
-      if (delta > 0) goTo(current + 1);
-      else goTo(current - 1);
+      if (delta > 0) goTo(current + 1, 1);
+      else goTo(current - 1, -1);
     };
     window.addEventListener("touchstart", onTouchStart, { passive: true });
     window.addEventListener("touchend", onTouchEnd, { passive: true });
@@ -770,7 +769,7 @@ function HubPageInner() {
         {sections.map((s, i) => (
           <button
             key={s.title}
-            onClick={() => goTo(i)}
+            onClick={() => goTo(i, i > current ? 1 : -1)}
             className="group relative flex flex-col items-center"
             aria-label={`Go to ${s.title}`}
           >
